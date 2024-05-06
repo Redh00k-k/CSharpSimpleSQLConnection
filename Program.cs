@@ -3,8 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Data.SqlClient;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
+using System.Xml;
 using CommandLine;
 using CommandLine.Text;
 
@@ -25,17 +29,26 @@ class Options {
 
 namespace SQL {
     class Program {
+        static byte[] ObjectToByteArray(object obj) {
+            if (obj == null)
+                return null;
+            BinaryFormatter bf = new BinaryFormatter();
+            using (MemoryStream ms = new MemoryStream()) {
+                bf.Serialize(ms, obj);
+                return ms.ToArray();
+            }
+        }
+
         static void Run(Options opt) {
-            Console.Write("User: ");
-            string user = Console.ReadLine();
-
-            Console.Write("Password: ");
-            string password = Console.ReadLine();
-
             String conString = "";
             if (opt.no_pass) {
                 conString = "Server = " + opt.server + "; Database = " + opt.database + "; Integrated Security = True;";
             } else {
+                Console.Write("User: ");
+                string user = Console.ReadLine();
+
+                Console.Write("Password: ");
+                string password = Console.ReadLine();
                 conString = "Server = " + opt.server + "; Database = " + opt.database + "; User ID = " + user + "; Password = " + password + ";";
             }
             Console.WriteLine(conString);
@@ -51,26 +64,44 @@ namespace SQL {
             }
 
             // send query and receive response.
-            string line = "";
-            try {
-                do {
-                    Console.Write("Query > ");
-                    string query = Console.ReadLine();
-                    if (line != null) {
-                        SqlCommand command = new SqlCommand(query, con);
-                        SqlDataReader reader = command.ExecuteReader();
+            string query = "";
+            do {
+                Console.Write("Query > ");
+                query = Console.ReadLine();
+                if (query.ToLower() == "quit" || query.ToLower() == "exit") {
+                    Console.WriteLine("Exiting ...");
+                    break;
+                }
+                try {
+                    SqlCommand command = new SqlCommand(query, con);
+                    SqlDataReader reader = command.ExecuteReader();
 
-                        while (reader.Read()) {
-                            Console.WriteLine("" + reader[0]);
+
+                    // Gets the values
+                    int row_num = 0;
+                    while (reader.Read()) {
+                        Console.WriteLine($"----{row_num} row----");
+                        for (int col = 0; col < reader.FieldCount; col++) {
+                            reader.GetValue(col).GetType();
+                            Console.Write(reader.GetName(col).ToString() + ": ");
+                            if (reader.IsDBNull(col)) {
+                                Console.WriteLine("NULL");
+                            } else if (typeof(System.Byte[]) == reader.GetValue(col).GetType()) {
+                                Console.WriteLine(System.Text.Encoding.Default.GetString(ObjectToByteArray(reader.GetValue(col))));
+                            } else {
+                                Console.WriteLine(reader.GetValue(col).ToString());
+                            }
                         }
-                        reader.Close();
+                        Console.WriteLine("");
+
+                        row_num++;
                     }
-                } while (line != null);
-            } catch (Exception e) {
-                Console.WriteLine($"Something wrong. {e.Message}");
-            } finally {
-                con.Close();
-            }
+                    reader.Close();
+                } catch (Exception e) {
+                    Console.WriteLine($"Something wrong. {e.Message}");
+                }
+            } while (query != null) ;
+            con.Close();
         }
 
         static void DisplayHelp<T>(ParserResult<T> result, IEnumerable<Error> errs) {
