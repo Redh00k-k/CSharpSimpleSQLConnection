@@ -19,7 +19,7 @@ class Options {
     [Option('d', "database", Required = true, HelpText = "Database name.")]
     public string database { get; set; }
 
-    [Option('q', "query", Required = false, HelpText = "Execute oneline query.")]
+    [Option('q', "query", Default = "", Required = false, HelpText = "Execute oneline query.")]
     public string one_query { get; set; }
 
     [Option('u', "user", Required = false, Default = "", HelpText = "User name.")]
